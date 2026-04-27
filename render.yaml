@@ -2,6 +2,7 @@ services:
   - type: web
     name: job-board-api
     runtime: node
+    rootDir: server
     buildCommand: npm install && npm run build && npx prisma migrate deploy
     startCommand: npm start
     envVars:
@@ -18,4 +19,4 @@ services:
       - key: CORS_ORIGIN
         sync: false
       - key: PORT
-        value: 10000
+        value: "10000"
