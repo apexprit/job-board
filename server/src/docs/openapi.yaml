@@ -1,0 +1,821 @@
+openapi: 3.0.3
+info:
+  title: JobBoard API
+  description: Full-featured Job Board Platform API
+  version: 1.0.0
+  contact:
+    name: JobBoard Team
+
+servers:
+  - url: http://localhost:3001/api
+    description: Local development
+  - url: http://localhost/api
+    description: Docker production
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Jobs
+    description: Job listing management
+  - name: Applications
+    description: Job application management
+  - name: Companies
+    description: Company profiles
+  - name: Users
+    description: User profile management
+  - name: Admin
+    description: Admin operations
+  - name: Upload
+    description: File upload endpoints
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, EMPLOYER, SEEKER]
+        avatarUrl:
+          type: string
+          nullable: true
+        resumeUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        type:
+          type: string
+          enum: [FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP, REMOTE]
+        salaryMin:
+          type: integer
+          nullable: true
+        salaryMax:
+          type: integer
+          nullable: true
+        requirements:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CLOSED]
+        companyId:
+          type: string
+        employerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+        coverLetter:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, REVIEWED, SHORTLISTED, REJECTED, HIRED]
+        jobId:
+          type: string
+        seekerId:
+          type: string
+        resumeUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        websiteUrl:
+          type: string
+          nullable: true
+        industry:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AuthTokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        details:
+          type: object
+
+    PaginatedResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: {}
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, firstName, lastName, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                role:
+                  type: string
+                  enum: [EMPLOYER, SEEKER]
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  tokens:
+                    $ref: '#/components/schemas/AuthTokens'
+        '400':
+          description: Validation error
+        '409':
+          description: Email already exists
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  tokens:
+                    $ref: '#/components/schemas/AuthTokens'
+        '401':
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+        '401':
+          description: Invalid refresh token
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+        '401':
+          description: Not authenticated
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /jobs:
+    get:
+      tags: [Jobs]
+      summary: List approved jobs
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: List of approved jobs
+    post:
+      tags: [Jobs]
+      summary: Create a new job
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, location, type, companyId]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+                type:
+                  type: string
+                  enum: [FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP, REMOTE]
+                salaryMin:
+                  type: integer
+                salaryMax:
+                  type: integer
+                requirements:
+                  type: string
+                companyId:
+                  type: string
+      responses:
+        '201':
+          description: Job created (pending approval)
+        '401':
+          description: Not authenticated
+        '403':
+          description: Not authorized (seekers cannot post jobs)
+
+  /jobs/search:
+    get:
+      tags: [Jobs]
+      summary: Search and filter jobs
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP, REMOTE]
+        - name: salaryMin
+          in: query
+          schema:
+            type: integer
+        - name: salaryMax
+          in: query
+          schema:
+            type: integer
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, salary]
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Search results
+
+  /jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Get job details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job details
+        '404':
+          description: Job not found
+    put:
+      tags: [Jobs]
+      summary: Update a job
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+                type:
+                  type: string
+                salaryMin:
+                  type: integer
+                salaryMax:
+                  type: integer
+                requirements:
+                  type: string
+      responses:
+        '200':
+          description: Job updated
+        '403':
+          description: Not authorized
+        '404':
+          description: Job not found
+    delete:
+      tags: [Jobs]
+      summary: Delete a job
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job deleted
+        '403':
+          description: Not authorized
+        '404':
+          description: Job not found
+
+  /applications:
+    post:
+      tags: [Applications]
+      summary: Apply for a job
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jobId]
+              properties:
+                jobId:
+                  type: string
+                coverLetter:
+                  type: string
+                resumeUrl:
+                  type: string
+      responses:
+        '201':
+          description: Application submitted
+        '409':
+          description: Already applied
+
+  /applications/seeker:
+    get:
+      tags: [Applications]
+      summary: List own applications (seeker)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of applications
+
+  /applications/job/{jobId}:
+    get:
+      tags: [Applications]
+      summary: List applicants for a job (employer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of applicants
+        '403':
+          description: Not authorized
+
+  /applications/{id}/status:
+    patch:
+      tags: [Applications]
+      summary: Update application status (employer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [PENDING, REVIEWED, SHORTLISTED, REJECTED, HIRED]
+      responses:
+        '200':
+          description: Status updated
+        '403':
+          description: Not authorized
+
+  /companies:
+    get:
+      tags: [Companies]
+      summary: List companies
+      responses:
+        '200':
+          description: List of companies
+    post:
+      tags: [Companies]
+      summary: Create a company
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                websiteUrl:
+                  type: string
+                industry:
+                  type: string
+                location:
+                  type: string
+      responses:
+        '201':
+          description: Company created
+
+  /companies/{id}:
+    get:
+      tags: [Companies]
+      summary: Get company details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Company details
+        '404':
+          description: Company not found
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get own profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+    put:
+      tags: [Users]
+      summary: Update profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                avatarUrl:
+                  type: string
+                resumeUrl:
+                  type: string
+      responses:
+        '200':
+          description: Profile updated
+
+  /users/me/password:
+    put:
+      tags: [Users]
+      summary: Change password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed
+        '401':
+          description: Current password incorrect
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get dashboard statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard stats
+        '403':
+          description: Admin access required
+
+  /admin/jobs/pending:
+    get:
+      tags: [Admin]
+      summary: List pending jobs for moderation
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of pending jobs
+
+  /admin/jobs/{id}/moderate:
+    patch:
+      tags: [Admin]
+      summary: Approve or reject a job
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [APPROVED, REJECTED]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Job moderated
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List all users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users
+
+  /admin/users/{id}/role:
+    patch:
+      tags: [Admin]
+      summary: Change user role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [ADMIN, EMPLOYER, SEEKER]
+      responses:
+        '200':
+          description: Role updated
+
+  /upload/resume:
+    post:
+      tags: [Upload]
+      summary: Upload resume
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [resume]
+              properties:
+                resume:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Resume uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+
+  /upload/avatar:
+    post:
+      tags: [Upload]
+      summary: Upload avatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [avatar]
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string

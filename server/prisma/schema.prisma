@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// NOTE: For production deployment, DATABASE_URL should point to PostgreSQL (e.g. Supabase).
+// In development, SQLite is used by default (file:./dev.db).
+// Prisma handles dialect differences automatically, but you must run
+// `prisma migrate dev` (dev) or `prisma migrate deploy` (prod) after switching providers.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          UserRole  @default(SEEKER)
+  avatarUrl     String?
+  resumeUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  jobs          Job[]     @relation("EmployerJobs")
+  applications  Application[]
+
+  @@index([email])
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  logoUrl     String?
+  websiteUrl  String?
+  industry    String?
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  jobs        Job[]
+}
+
+model Job {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  location    String
+  type        JobType
+  salaryMin   Int?
+  salaryMax   Int?
+  requirements String?
+  companyId   String
+  employerId  String
+  status      JobStatus    @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  company     Company      @relation(fields: [companyId], references: [id])
+  employer    User         @relation("EmployerJobs", fields: [employerId], references: [id])
+  applications Application[]
+
+  @@index([employerId])
+  @@index([companyId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+model Application {
+  id        String           @id @default(cuid())
+  coverLetter String?
+  status    ApplicationStatus @default(PENDING)
+  jobId     String
+  seekerId  String
+  resumeUrl String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  job       Job              @relation(fields: [jobId], references: [id])
+  seeker    User             @relation(fields: [seekerId], references: [id])
+
+  @@unique([jobId, seekerId])
+  @@index([seekerId])
+  @@index([jobId])
+}
+
+enum UserRole {
+  ADMIN
+  EMPLOYER
+  SEEKER
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  REMOTE
+}
+
+enum JobStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWED
+  SHORTLISTED
+  REJECTED
+  HIRED
+  WITHDRAWN
+}
