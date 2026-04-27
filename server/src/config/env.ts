@@ -12,6 +12,10 @@ const envSchema = z.object({
   // In development, it can point to a local SQLite file
   DATABASE_URL: z.string().min(1),
 
+  // Direct database URL for Prisma migrations (Supabase requires non-pooled connection)
+  // If not set, DATABASE_URL is used (fine for local dev)
+  DIRECT_URL: z.string().optional(),
+
   // JWT — must be set explicitly in production
   JWT_SECRET: z.string().min(1).refine(
     (val) => process.env.NODE_ENV !== 'production' || val.length >= 32,
